@@ -1,0 +1,19 @@
+{
+  "data_dir": "src/perception_sim/training_images",
+  "val_split": 0.2,
+  "depth_scale": 1.0,
+  "max_depth": 5.0,
+  "pretrained_path": "checkpoints/frozen_transfer/best_model.pth",
+  "freeze_rgb": false,
+  "unfreeze_all": true,
+  "init_method": "random",
+  "aux": true,
+  "epochs": 30,
+  "batch_size": 8,
+  "lr": 0.001,
+  "lr_scheduler": "poly",
+  "weight_decay": 4e-05,
+  "num_workers": 4,
+  "output_dir": "checkpoints/finetuned",
+  "save_interval": 5
+}

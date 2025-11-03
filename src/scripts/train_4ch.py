@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Training script for Fast-SCNN with 4-channel input (RGB + Depth).
 
@@ -23,10 +22,18 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 import numpy as np
 
-# Add Fast-SCNN utils to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../external/Fast-SCNN-pytorch'))
+# Add project root to path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+sys.path.insert(0, project_root)
 
-from src.models.fast_scnn_4ch import FastSCNN4Ch, load_pretrained_with_new_channel
+# Add Fast-SCNN utils to path
+sys.path.insert(0, os.path.join(project_root, 'external/Fast-SCNN-pytorch'))
+
+from src.models.fast_scnn_4ch import (
+    FastSCNN4Ch, 
+    load_pretrained_with_new_channel,
+    freeze_all_except_4th_channel_and_classifier
+)
 from src.datasets.cones_balls_dataset import ConesBallsDataset
 from utils.loss import MixSoftmaxCrossEntropyLoss
 from utils.metric import SegmentationMetric
@@ -163,21 +170,41 @@ def main(args):
     
     # Load pretrained weights if available
     if args.pretrained_path and os.path.exists(args.pretrained_path):
-        print(f"Loading pretrained weights from {args.pretrained_path}")
-        model = load_pretrained_with_new_channel(
-            model,
-            args.pretrained_path,
-            freeze_rgb=args.freeze_rgb,
-            init_method=args.init_method
-        )
-        if args.freeze_rgb:
-            print("✓ RGB channels frozen. Only depth channel will be trained.")
+        print(f"Loading weights from {args.pretrained_path}")
+        
+        # Check if this is a 3-channel Cityscapes model or our own 4-channel checkpoint
+        checkpoint = torch.load(args.pretrained_path, map_location='cpu')
+        first_conv_shape = checkpoint.get('learning_to_downsample.conv.conv.0.weight').shape
+        is_3channel = first_conv_shape[1] == 3  # Check input channels
+        
+        if is_3channel:
+            print("→ Detected 3-channel pretrained model (e.g., Cityscapes)")
+            print(f"  Converting to 4-channel with init_method={args.init_method}")
+            # Load pretrained weights WITHOUT freezing first
+            model = load_pretrained_with_new_channel(
+                model,
+                args.pretrained_path,
+                freeze_rgb=False,  # Don't freeze yet
+                init_method=args.init_method
+            )
         else:
-            print("✓ All channels trainable.")
+            print("→ Detected 4-channel checkpoint (our own model)")
+            # Direct load - already 4-channel
+            model.load_state_dict(checkpoint, strict=True)
+            print("✓ Checkpoint loaded successfully")
+        
+        # Now apply freezing strategy based on args
+        if args.unfreeze_all:
+            print("✓ All parameters trainable (Stage 2: Fine-tuning)")
+        elif args.freeze_rgb:
+            print("\nApplying freeze strategy: EVERYTHING except 4th channel and classifier head (Stage 1: Transfer Learning)")
+            freeze_all_except_4th_channel_and_classifier(model)
+        else:
+            print("✓ All parameters trainable (default)")
     else:
         if args.pretrained_path:
             print(f"Warning: Pretrained weights not found at {args.pretrained_path}")
-        print("Training from scratch...")
+        print("Training from scratch (no pretrained weights)...")
     
     model = model.to(device)
     
@@ -286,9 +313,11 @@ if __name__ == '__main__':
     
     # Model
     parser.add_argument('--pretrained_path', type=str, default='external/Fast-SCNN-pytorch/weights/fast_scnn_citys.pth',
-                        help='Path to pretrained 3-channel weights (from project root)')
-    parser.add_argument('--freeze_rgb', action='store_true', default=True,
-                        help='Freeze RGB channels during training')
+                        help='Path to pretrained weights or checkpoint')
+    parser.add_argument('--freeze_rgb', action='store_true',
+                        help='Freeze EVERYTHING except 4th channel and classifier head (Stage 1: transfer learning)')
+    parser.add_argument('--unfreeze_all', action='store_true',
+                        help='Train all parameters (Stage 2: fine-tuning). Overrides --freeze_rgb')
     parser.add_argument('--init_method', type=str, default='random',
                         choices=['random', 'zeros', 'mean', 'copy_r', 'copy_g', 'copy_b'],
                         help='Initialization method for 4th channel')

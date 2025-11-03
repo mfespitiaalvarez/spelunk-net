@@ -120,8 +120,21 @@ def load_pretrained_with_new_channel(model_4ch, pretrained_path, freeze_rgb=True
     # Update the state dict with the new first conv weights
     pretrained_state['learning_to_downsample.conv.conv.0.weight'] = current_first_conv
     
-    # Load all weights (including the modified first conv)
-    model_4ch.load_state_dict(pretrained_state, strict=True)
+    # Remove classifier and auxlayer weights (these are task-specific and will have different shapes)
+    keys_to_remove = [k for k in pretrained_state.keys() if k.startswith('classifier.') or k.startswith('auxlayer.')]
+    for key in keys_to_remove:
+        del pretrained_state[key]
+    
+    # Load weights (strict=False to skip classifier and auxlayer)
+    missing_keys, unexpected_keys = model_4ch.load_state_dict(pretrained_state, strict=False)
+    
+    # Print what was loaded and what wasn't
+    print(f"✓ Loaded pretrained backbone weights (learning_to_downsample, global_feature_extractor, feature_fusion)")
+    print(f"✓ Initialized 4th channel with method: {init_method}")
+    if missing_keys:
+        classifier_keys = [k for k in missing_keys if 'classifier' in k or 'auxlayer' in k]
+        if classifier_keys:
+            print(f"✓ Classifier head initialized randomly (task-specific, {len(classifier_keys)} params)")
     
     # Freeze RGB channels if requested
     if freeze_rgb:

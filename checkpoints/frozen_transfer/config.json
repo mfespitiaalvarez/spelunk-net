@@ -1,0 +1,18 @@
+{
+  "data_dir": "src/perception_sim/training_images",
+  "val_split": 0.2,
+  "depth_scale": 1.0,
+  "max_depth": 5.0,
+  "pretrained_path": "external/Fast-SCNN-pytorch/weights/fast_scnn_citys.pth",
+  "freeze_rgb": true,
+  "init_method": "random",
+  "aux": true,
+  "epochs": 50,
+  "batch_size": 8,
+  "lr": 0.045,
+  "lr_scheduler": "poly",
+  "weight_decay": 4e-05,
+  "num_workers": 4,
+  "output_dir": "checkpoints/frozen_transfer",
+  "save_interval": 10
+}

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Extract color and depth image pairs from MCAP ROS bags with multiple sampling strategies.
 
