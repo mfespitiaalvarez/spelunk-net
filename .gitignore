@@ -222,3 +222,7 @@ __marimo__/
 *.pdf
 *.zip
 *.npy
+
+
+training_data/*
+*.png

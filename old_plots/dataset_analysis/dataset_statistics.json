@@ -1,0 +1,84 @@
+{
+  "total_images": 1462,
+  "total_pixels": 449126400,
+  "num_classes": 11,
+  "per_class_stats": {
+    "Background": {
+      "class_id": 0,
+      "images_containing": 1462,
+      "percentage_of_images": 100.0,
+      "total_pixels": 436088210,
+      "percentage_of_pixels": 97.09698873190264
+    },
+    "Red Cone": {
+      "class_id": 1,
+      "images_containing": 475,
+      "percentage_of_images": 32.489740082079344,
+      "total_pixels": 1853527,
+      "percentage_of_pixels": 0.4126960695251938
+    },
+    "Orange Cone": {
+      "class_id": 2,
+      "images_containing": 483,
+      "percentage_of_images": 33.03693570451436,
+      "total_pixels": 1717004,
+      "percentage_of_pixels": 0.3822986134860921
+    },
+    "Purple Cone": {
+      "class_id": 3,
+      "images_containing": 477,
+      "percentage_of_images": 32.6265389876881,
+      "total_pixels": 1736448,
+      "percentage_of_pixels": 0.3866279069767442
+    },
+    "Green Cone": {
+      "class_id": 4,
+      "images_containing": 453,
+      "percentage_of_images": 30.98495212038304,
+      "total_pixels": 1584255,
+      "percentage_of_pixels": 0.3527414554121067
+    },
+    "Yellow Cone": {
+      "class_id": 5,
+      "images_containing": 479,
+      "percentage_of_images": 32.76333789329686,
+      "total_pixels": 1580256,
+      "percentage_of_pixels": 0.35185106019151846
+    },
+    "Blue Cone": {
+      "class_id": 6,
+      "images_containing": 488,
+      "percentage_of_images": 33.378932968536255,
+      "total_pixels": 1593432,
+      "percentage_of_pixels": 0.3547847554719562
+    },
+    "Red Ball": {
+      "class_id": 7,
+      "images_containing": 556,
+      "percentage_of_images": 38.03009575923392,
+      "total_pixels": 798440,
+      "percentage_of_pixels": 0.17777623404012768
+    },
+    "Yellow Ball": {
+      "class_id": 8,
+      "images_containing": 524,
+      "percentage_of_images": 35.841313269493845,
+      "total_pixels": 663570,
+      "percentage_of_pixels": 0.1477468258378933
+    },
+    "Blue Ball": {
+      "class_id": 9,
+      "images_containing": 545,
+      "percentage_of_images": 37.277701778385776,
+      "total_pixels": 801007,
+      "percentage_of_pixels": 0.1783477880614455
+    },
+    "Green Ball": {
+      "class_id": 10,
+      "images_containing": 532,
+      "percentage_of_images": 36.388508891928865,
+      "total_pixels": 710251,
+      "percentage_of_pixels": 0.15814055909427724
+    }
+  }
+}

@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.join(project_root, 'external/Fast-SCNN-pytorch'))
 
 from src.models.fast_scnn_4ch import FastSCNN4Ch
 from src.datasets.cones_balls_dataset import ConesBallsDataset
+from torch.utils.data import random_split
 from utils.metric import SegmentationMetric
 
 # Color map for visualization (same as in training data generation)
@@ -146,12 +147,40 @@ def run_inference(args):
     
     # Load dataset
     print(f"\nLoading dataset from {args.data_dir}")
-    dataset = ConesBallsDataset(
+    full_dataset = ConesBallsDataset(
         args.data_dir,
         depth_scale=args.depth_scale,
         max_depth=args.max_depth
     )
-    print(f"Total samples: {len(dataset)}")
+    print(f"Total samples: {len(full_dataset)}")
+    
+    # Apply train/val split if requested
+    if args.split != 'all':
+        val_size = int(len(full_dataset) * args.val_split)
+        train_size = len(full_dataset) - val_size
+        train_dataset, val_dataset = random_split(
+            full_dataset,
+            [train_size, val_size],
+            generator=torch.Generator().manual_seed(42)  # Same seed as training!
+        )
+        
+        if args.split == 'train':
+            dataset = train_dataset
+            print(f"Using TRAINING split: {len(dataset)} samples")
+        else:  # val
+            dataset = val_dataset
+            print(f"Using VALIDATION split: {len(dataset)} samples")
+    else:
+        dataset = full_dataset
+        print(f"Using ALL samples: {len(dataset)} samples")
+    
+    # Helper function to get sample_id (handles both Dataset and Subset)
+    def get_sample_id(dataset, idx):
+        if hasattr(dataset, 'dataset'):  # It's a Subset
+            real_idx = dataset.indices[idx]
+            return dataset.dataset.samples[real_idx]
+        else:  # It's the original dataset
+            return dataset.samples[idx]
     
     # Create model (with aux=True to match training configuration)
     print(f"\nCreating 4-channel Fast-SCNN model...")
@@ -175,6 +204,14 @@ def run_inference(args):
     # Initialize metrics
     metric = SegmentationMetric(num_classes)
     
+    # Additional tracking for precision/recall
+    class_tp = np.zeros(num_classes)  # True positives per class
+    class_fp = np.zeros(num_classes)  # False positives per class
+    class_fn = np.zeros(num_classes)  # False negatives per class
+    
+    # Confusion matrix: rows = ground truth, cols = predictions
+    confusion_matrix = np.zeros((num_classes, num_classes), dtype=np.int64)
+    
     # Select samples to visualize
     if args.num_samples > len(dataset):
         args.num_samples = len(dataset)
@@ -196,7 +233,7 @@ def run_inference(args):
         for idx in tqdm(sample_indices, desc="Processing"):
             # Load sample
             rgbd, gt_mask = dataset[idx]
-            sample_id = dataset.samples[idx]
+            sample_id = get_sample_id(dataset, idx)
             
             # Add batch dimension
             rgbd_batch = rgbd.unsqueeze(0).to(device)
@@ -211,6 +248,25 @@ def run_inference(args):
             
             # Update metrics
             metric.update(pred_mask[np.newaxis, ...], gt_mask_np[np.newaxis, ...])
+            
+            # Update precision/recall tracking and confusion matrix
+            for class_id in range(num_classes):
+                pred_class = (pred_mask == class_id)
+                gt_class = (gt_mask_np == class_id)
+                
+                tp = np.sum(pred_class & gt_class)
+                fp = np.sum(pred_class & ~gt_class)
+                fn = np.sum(~pred_class & gt_class)
+                
+                class_tp[class_id] += tp
+                class_fp[class_id] += fp
+                class_fn[class_id] += fn
+            
+            # Update confusion matrix
+            for gt_class in range(num_classes):
+                for pred_class in range(num_classes):
+                    count = np.sum((gt_mask_np == gt_class) & (pred_mask == pred_class))
+                    confusion_matrix[gt_class, pred_class] += count
             
             # Calculate per-sample metrics
             sample_metric = SegmentationMetric(num_classes)
@@ -235,18 +291,35 @@ def run_inference(args):
     # Overall metrics
     pixAcc, mIoU = metric.get()
     
+    # Calculate per-class IoU from metric's internal state
+    IoU = 1.0 * metric.total_inter / (np.spacing(1) + metric.total_union)
+    
+    # Calculate per-class precision and recall
+    precision = class_tp / (class_tp + class_fp + np.spacing(1))
+    recall = class_tp / (class_tp + class_fn + np.spacing(1))
+    f1_score = 2 * (precision * recall) / (precision + recall + np.spacing(1))
+    
+    # Calculate per-class accuracy (diagonal of confusion matrix / row sum)
+    class_accuracy = np.zeros(num_classes)
+    for i in range(num_classes):
+        row_sum = confusion_matrix[i, :].sum()
+        if row_sum > 0:
+            class_accuracy[i] = confusion_matrix[i, i] / row_sum
+        else:
+            class_accuracy[i] = 0.0
+    
     print(f"\n{'='*60}")
     print(f"Inference Results")
     print(f"{'='*60}")
     print(f"Overall Pixel Accuracy: {pixAcc:.4f}")
     print(f"Overall Mean IoU: {mIoU:.4f}")
     
-    # Per-class IoU
-    _, _, _, _, IoU = metric.get_scores()
-    print(f"\nPer-Class IoU:")
-    for i, iou in enumerate(IoU):
-        if i < len(LABEL_NAMES):
-            print(f"  {LABEL_NAMES[i]:20s}: {iou:.4f}")
+    # Per-class metrics
+    print(f"\nPer-Class Metrics:")
+    print(f"{'Class':<20} {'IoU':>8} {'Precision':>10} {'Recall':>8} {'F1-Score':>10}")
+    print(f"{'-'*60}")
+    for i in range(min(len(LABEL_NAMES), num_classes)):
+        print(f"{LABEL_NAMES[i]:<20} {IoU[i]:>8.4f} {precision[i]:>10.4f} {recall[i]:>8.4f} {f1_score[i]:>10.4f}")
     
     # Save results
     results_summary = {
@@ -254,7 +327,16 @@ def run_inference(args):
         'num_samples': args.num_samples,
         'overall_pixAcc': float(pixAcc),
         'overall_mIoU': float(mIoU),
-        'per_class_IoU': {LABEL_NAMES[i]: float(iou) for i, iou in enumerate(IoU) if i < len(LABEL_NAMES)},
+        'per_class_metrics': {
+            LABEL_NAMES[i]: {
+                'IoU': float(IoU[i]),
+                'precision': float(precision[i]),
+                'recall': float(recall[i]),
+                'f1_score': float(f1_score[i]),
+                'accuracy': float(class_accuracy[i])
+            } for i in range(min(len(LABEL_NAMES), num_classes))
+        },
+        'confusion_matrix': confusion_matrix.tolist(),
         'per_sample_results': results
     }
     
@@ -279,6 +361,10 @@ if __name__ == '__main__':
                         help='Path to dataset directory')
     
     # Inference settings
+    parser.add_argument('--split', type=str, default='all', choices=['all', 'train', 'val'],
+                        help='Which split to evaluate: all, train, or val')
+    parser.add_argument('--val_split', type=float, default=0.2,
+                        help='Validation split ratio (must match training, default: 0.2)')
     parser.add_argument('--num_samples', type=int, default=10,
                         help='Number of samples to visualize')
     parser.add_argument('--random_samples', action='store_true',

@@ -24,7 +24,7 @@ def extract_metrics_from_checkpoints(checkpoint_dir):
     
     for ckpt_path in checkpoint_files:
         try:
-            ckpt = torch.load(ckpt_path, map_location='cpu')
+            ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
             if isinstance(ckpt, dict) and 'epoch' in ckpt:
                 epochs.append(ckpt['epoch'])
                 train_losses.append(ckpt.get('train_loss', None))

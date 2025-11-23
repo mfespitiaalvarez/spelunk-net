@@ -1,0 +1,23 @@
+{
+  "data_root": "training_data",
+  "session_folder": "10_16_different_light_flight_semantics_hard_sampling_20251027_123252",
+  "val_split": 0.2,
+  "depth_scale": 1.0,
+  "max_depth": 20.0,
+  "crop_size": 512,
+  "rotation_degrees": 15,
+  "depth_dropout_prob": 0.1,
+  "pretrained_path": "external/Fast-SCNN-pytorch/weights/fast_scnn_citys.pth",
+  "freeze_rgb": false,
+  "unfreeze_all": false,
+  "init_method": "random",
+  "aux": true,
+  "epochs": 150,
+  "batch_size": 8,
+  "lr": 0.045,
+  "lr_scheduler": "poly",
+  "weight_decay": 4e-05,
+  "num_workers": 4,
+  "output_dir": "checkpoints/flight_run_1",
+  "save_interval": 10
+}
